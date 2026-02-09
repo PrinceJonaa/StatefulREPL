@@ -368,12 +368,12 @@ Every operation is scored across these 7 dimensions:
 
 ### Phase 3: Multi-Agent (Months 4–6)
 
-- [ ] Saga transaction management
-- [ ] HALO hierarchical planning
-- [ ] Dynamic task routing (capability-based)
-- [ ] Coordinator / Builder / Verifier / Distiller agent roles
-- [ ] Full RLM implementation
-- **Goal:** Handle complex multi-step workflows across multiple AIs
+- [x] Saga transaction management (async with retry, timeout, compensation)
+- [x] HALO hierarchical planning (DAG decomposition, topological scheduling)
+- [x] Dynamic task routing (capability-match, round-robin, least-busy)
+- [x] Coordinator / Builder / Verifier / Distiller agent roles
+- [x] Inter-agent message bus (InProcessBus with topic pub/sub)
+- **Result:** Multi-agent orchestration working end-to-end
 
 ### Phase 4: Advanced (Ongoing)
 
@@ -465,44 +465,49 @@ Every operation is scored across these 7 dimensions:
 > can understand what has been built, what works, what's next, and how to continue.
 > Update this section after every significant change.
 
-### Current Status: Phase 2 COMPLETE — Ready for Phase 3
+### Current Status: Phase 3 COMPLETE — Ready for Phase 4
 
-**Last Updated:** 2025-01-XX (update on each session)
+**Last Updated:** 2026-02-08
 
 ### What Exists Now (File Map)
 
 ```
 src/stateful_repl/
-├── __init__.py          # v0.2.0 — exports all public classes
+├── __init__.py          # v0.3.0 — exports all public classes
 ├── loom_state.py        # Core engine: LoomREPL, L1/L2/L3, markdown persistence (561 lines)
 ├── sandbox.py           # Restricted code execution (whitelisted builtins)
 ├── quality.py           # 7D quality vector (7 Strategy classes + QualityEvaluator)
 ├── hallucination.py     # 4-method ensemble detector (structural + model-assisted)
 ├── events.py            # Event sourcing: InMemoryEventStore (JSON) + SQLiteEventStore
 ├── models.py            # Model abstraction: OpenAI, Anthropic, Local adapters
-├── orchestrator.py      # Saga transactions (Phase 3 stub)
-├── server.py            # FastAPI + SSE real-time streaming
-└── cli.py               # CLI: init, status, read, goal, quality, serve, etc.
+├── orchestrator.py      # Saga transactions (sync Phase 1 + async Phase 3)
+├── server.py            # FastAPI + SSE real-time streaming + Phase 3 endpoints
+├── cli.py               # CLI: init, status, read, goal, quality, serve, agents
+├── message_bus.py       # Async inter-agent message bus (InProcessBus, Topics)
+├── planner.py           # HALO hierarchical task planner (DAG, topological sort)
+├── agents.py            # Agent roles: Coordinator, Builder, Verifier, Distiller
+└── router.py            # Dynamic capability-based task router
 
 tests/
 ├── test_loom_state.py   # 29 tests — core state engine
 ├── test_sandbox.py      # 10 tests — sandbox security
 ├── test_quality.py      # 24 tests — 7D quality dimensions
-├── test_hallucination.py # 14 tests — hallucination detection ensemble
-├── test_events.py       # 20 tests — JSON + SQLite event stores
-└── test_server.py       # 14 tests — FastAPI endpoints
+├── test_hallucination.py # 18 tests — hallucination detection ensemble
+├── test_events.py       # 18 tests — JSON + SQLite event stores
+├── test_server.py       # 14 tests — FastAPI endpoints
+└── test_phase3.py       # 68 tests — message bus, saga, planner, agents, router
 
 examples/
 ├── demo_workflow.py     # O-P-W-T-R cycle demo
 └── demo_multi_session.py # Cross-session persistence demo
 ```
 
-**Total tests: 111 passing | 0 failing**
+**Total tests: 179 passing | 0 failing**
 
 ### Key Design Decisions Made
 
 1. **SQLite over PostgreSQL for Phase 2** — Simpler deployment, zero config, WAL mode
-   gives good concurrency. PostgreSQL upgrade deferred to Phase 3 if needed.
+   gives good concurrency. PostgreSQL upgrade deferred to Phase 4 if needed.
 2. **Strategy pattern for quality dimensions** — Each quality axis is a pluggable
    `QualityDimension` class. New dimensions can be added without touching evaluator.
 3. **Structural-first hallucination detection** — All 4 methods work without a live
@@ -511,6 +516,16 @@ examples/
    swapping a one-line change.
 5. **FastAPI with SSE** — Server-Sent Events for real-time quality streaming. No
    WebSocket complexity; SSE is simpler and sufficient for one-way updates.
+6. **asyncio.Queue for Phase 3 message bus** — InProcessBus is simple, testable, and
+   sufficient for single-process multi-agent. Redis Pub/Sub upgrade path exists.
+7. **Sync/async dual Saga** — SagaTransaction (sync, Phase 1 compat) + AsyncSagaManager
+   (async with retry, timeout, compensation). Both APIs coexist.
+8. **HALO planner with topological tiers** — Tasks within a tier can run in parallel.
+   Dependencies between tiers are enforced. Cycle detection prevents deadlock.
+9. **Capability-based routing** — TaskRouter matches tasks to agents by role + skills.
+   Supports round-robin, least-busy, and custom routing rules.
+10. **Agent roles as LoomAgent subclasses** — CoordinatorLoom, BuilderLoom, VerifierLoom,
+    DistillerLoom. Each declares capabilities and subscribes to relevant topics.
 
 ### What's Verified Working
 

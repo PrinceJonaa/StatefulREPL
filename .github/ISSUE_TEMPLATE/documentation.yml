@@ -1,0 +1,93 @@
+name: Documentation Issue
+description: Report missing, incorrect, or unclear documentation
+title: "[Docs]: "
+labels: ["documentation", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve StatefulREPL's documentation! Clear docs are essential for The Loom's mission.
+
+  - type: dropdown
+    id: doc_type
+    attributes:
+      label: Documentation Type
+      description: What kind of documentation needs improvement?
+      options:
+        - README.md
+        - agents.md (Architecture)
+        - API Reference / Docstrings
+        - Code Comments
+        - Tutorial / Guide
+        - Example / Demo
+        - CLI Help Text
+        - Error Messages
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: location
+    attributes:
+      label: Location
+      description: Where is the documentation issue? (File path, URL, function name, etc.)
+      placeholder: "src/stateful_repl/loom_state.py, line 145"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's Wrong?
+      description: Describe the problem. Is it missing, incorrect, outdated, or unclear?
+      placeholder: |
+        The docstring for `consolidate_l1_to_l2()` doesn't explain when to use it vs. `consolidate_l2_to_l3()`
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested Improvement
+      description: How should the documentation be improved?
+      placeholder: |
+        Add a section explaining:
+        - L1→L2: At end of a single coherent action
+        - L2→L3: When extracting patterns from session history
+    validations:
+      required: false
+
+  - type: dropdown
+    id: audience
+    attributes:
+      label: Target Audience
+      description: Who is this documentation for?
+      options:
+        - New Users (Getting Started)
+        - Application Developers (Using the API)
+        - Contributors (Extending the System)
+        - AI Agents (Understanding Loom Protocol)
+        - All Audiences
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other helpful information, links, or examples
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      description: Please confirm the following
+      options:
+        - label: I have checked the latest version of the documentation
+          required: true
+        - label: I have searched existing documentation issues
+          required: true

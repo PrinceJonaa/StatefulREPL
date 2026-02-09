@@ -206,10 +206,15 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# StatefulREPL Loom runtime files 
-# (gitignore-optional — you may want to track loom_state.md)
+# StatefulREPL Loom runtime files
+loom_state.md
 demo_state.md
 persistent_state.md
 loom_events_*.json
 demo_events.json
 loom_archives/
+events.json
+events.db
+
+# macOS
+.DS_Store

@@ -112,6 +112,10 @@ def make_parser() -> argparse.ArgumentParser:
     sv.add_argument("--port", type=int, default=8000, help="Bind port")
     sv.add_argument("--reload", action="store_true", help="Auto-reload on changes")
 
+    # agents (Phase 3)
+    ag = sub.add_parser("agents", help="Show Phase 3 agent system status")
+    ag.add_argument("--plan", default=None, help="Create a plan for a goal")
+
     return p
 
 
@@ -249,6 +253,26 @@ def main(argv=None):
             port=args.port,
             reload=args.reload,
         )
+
+    elif args.command == "agents":
+        from stateful_repl.planner import TaskPlanner, TaskNode
+        from stateful_repl.router import TaskRouter
+        from stateful_repl.agents import AgentCapability
+        if args.plan:
+            planner = TaskPlanner()
+            plan = planner.create_plan(args.plan)
+            plan.add_task(TaskNode(id="task-1", name=args.plan, role="builder"))
+            tiers = planner.schedule(plan)
+            print(f"Plan: {plan.goal}")
+            print(f"Tasks: {plan.task_count}")
+            for i, tier in enumerate(tiers):
+                print(f"  Tier {i}: {', '.join(tier)}")
+        else:
+            print("StatefulREPL Phase 3 — Multi-Agent Orchestration")
+            print(f"  Version: 0.3.0")
+            print(f"  Modules: message_bus, orchestrator, planner, agents, router")
+            print(f"  Agent roles: coordinator, builder, verifier, distiller")
+            print(f"\nUse --plan '<goal>' to create a task plan.")
 
 
 if __name__ == "__main__":

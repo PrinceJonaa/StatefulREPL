@@ -177,7 +177,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="StatefulREPL — The Loom",
     description="Stateful AI memory & orchestration API",
-    version="0.2.0",
+    version="0.3.0",
     lifespan=lifespan,
 )
 
@@ -199,7 +199,7 @@ def health():
     store = _get_event_store()
     return HealthResponse(
         status="ok",
-        version="0.2.0",
+        version="0.3.0",
         state_file=STATE_FILE,
         event_count=store.count(),
     )
@@ -404,3 +404,55 @@ async def sse_stream():
             "X-Accel-Buffering": "no",
         },
     )
+
+
+# ─────────────────────────────────────────────────────────
+# Phase 3 — Agents & Orchestration
+# ─────────────────────────────────────────────────────────
+
+class PlanRequest(BaseModel):
+    goal: str
+    context: Optional[str] = None
+
+
+class TaskAssignRequest(BaseModel):
+    task_id: str
+    name: str
+    role: str = "builder"
+    description: str = ""
+
+
+@app.get("/agents/status")
+def agents_status():
+    """Phase 3 agent system overview."""
+    return {
+        "version": "0.3.0",
+        "phase": 3,
+        "modules": ["message_bus", "orchestrator", "planner", "agents", "router"],
+        "roles": ["coordinator", "builder", "verifier", "distiller"],
+    }
+
+
+@app.post("/agents/plan")
+def create_plan(body: PlanRequest):
+    """Create a task plan by decomposing a goal."""
+    from stateful_repl.planner import TaskPlanner, TaskNode
+    planner = TaskPlanner()
+    plan = planner.create_plan(body.goal)
+    plan.add_task(TaskNode(id="task-1", name=body.goal, role="builder"))
+    tiers = planner.schedule(plan)
+    return {
+        "plan_id": plan.plan_id,
+        "goal": plan.goal,
+        "task_count": plan.task_count,
+        "tiers": tiers,
+        "tasks": {tid: t.to_dict() for tid, t in plan.tasks.items()},
+    }
+
+
+@app.get("/agents/router")
+def router_summary():
+    """Get task router summary."""
+    from stateful_repl.router import TaskRouter
+    router = TaskRouter()
+    return router.summary()

@@ -5,7 +5,7 @@ tools:
   - read
   - search
   - web
-  - todos
+  - todo
 agents:
   - coordinator
   - builder

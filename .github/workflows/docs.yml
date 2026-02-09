@@ -1,0 +1,72 @@
+name: Documentation
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - 'src/**/*.py'
+      - 'agents.md'
+      - 'README.md'
+  workflow_dispatch:
+
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev,all]"
+        pip install mkdocs mkdocs-material mkdocstrings[python]
+
+    - name: Build documentation
+      run: |
+        # Create mkdocs.yml if it doesn't exist
+        if [ ! -f mkdocs.yml ]; then
+          cat > mkdocs.yml << EOF
+        site_name: StatefulREPL Documentation
+        site_description: Stateful AI memory and orchestration system
+        site_url: https://princejonaa.github.io/StatefulREPL
+        repo_url: https://github.com/PrinceJonaa/StatefulREPL
+        repo_name: PrinceJonaa/StatefulREPL
+        
+        theme:
+          name: material
+          features:
+            - navigation.sections
+            - navigation.expand
+            - search.highlight
+          palette:
+            - scheme: default
+              primary: indigo
+              accent: indigo
+        
+        plugins:
+          - search
+          - mkdocstrings:
+              handlers:
+                python:
+                  paths: [src]
+        
+        nav:
+          - Home: README.md
+          - Architecture: agents.md
+          - Integration: docs/prompt_integration.md
+          - API Reference: docs/api.md
+        EOF
+        fi
+        mkdocs build
+
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./site
