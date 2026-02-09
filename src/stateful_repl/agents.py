@@ -438,9 +438,13 @@ class BuilderLoom(LoomAgent):
     def _get_sandbox(self):
         """Lazy-load sandbox to avoid import cycle."""
         if self._sandbox is None:
+            import tempfile
             from stateful_repl.sandbox import LoomSandbox
-            loom = self.loom or LoomREPL()
-            self._sandbox = LoomSandbox(loom=loom)
+            if self.loom is None:
+                # Create a temporary LoomREPL to avoid disk side effects
+                tmp = tempfile.mktemp(suffix=".md")
+                self.loom = LoomREPL(state_file=tmp, enable_events=False)
+            self._sandbox = LoomSandbox(loom=self.loom)
         return self._sandbox
 
     async def handle_task(self, task: TaskNode, context: Dict[str, Any]) -> TaskResult:

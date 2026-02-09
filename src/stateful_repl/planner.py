@@ -206,13 +206,6 @@ def validate_dag(plan: TaskPlan) -> List[str]:
     # Cycle detection via Kahn's algorithm
     if not issues:
         in_degree: Dict[str, int] = {tid: 0 for tid in task_ids}
-        for task in plan.tasks.values():
-            for dep in task.depends_on:
-                if dep in in_degree:
-                    in_degree[task.id] = in_degree.get(task.id, 0) + 1
-
-        # BFS — this is wrong, recalculate
-        in_degree = {tid: 0 for tid in task_ids}
         adj: Dict[str, List[str]] = defaultdict(list)
         for task in plan.tasks.values():
             for dep in task.depends_on:
@@ -338,7 +331,7 @@ class TaskPlanner:
             if task.status not in (TaskStatus.PENDING, TaskStatus.READY):
                 continue
             deps_met = all(
-                plan.tasks.get(dep, TaskNode(id="", name="")).status == TaskStatus.COMPLETED
+                dep in plan.tasks and plan.tasks[dep].status == TaskStatus.COMPLETED
                 for dep in task.depends_on
             )
             if deps_met:
@@ -350,31 +343,46 @@ class TaskPlanner:
         return ready
 
     def mark_running(self, plan: TaskPlan, task_id: str, agent_id: str) -> None:
-        """Mark a task as running, assigned to an agent."""
+        """Mark a task as running, assigned to an agent.
+
+        Raises:
+            KeyError: If task_id does not exist in the plan.
+        """
         task = plan.tasks.get(task_id)
-        if task:
-            task.status = TaskStatus.RUNNING
-            task.assigned_to = agent_id
-            task.started_at = datetime.now().isoformat()
+        if task is None:
+            raise KeyError(f"Task '{task_id}' not found in plan '{plan.plan_id}'")
+        task.status = TaskStatus.RUNNING
+        task.assigned_to = agent_id
+        task.started_at = datetime.now().isoformat()
 
     def mark_completed(self, plan: TaskPlan, task_id: str, result: Any = None) -> None:
-        """Mark a task as completed."""
+        """Mark a task as completed.
+
+        Raises:
+            KeyError: If task_id does not exist in the plan.
+        """
         task = plan.tasks.get(task_id)
-        if task:
-            task.status = TaskStatus.COMPLETED
-            task.result = result
-            task.completed_at = datetime.now().isoformat()
+        if task is None:
+            raise KeyError(f"Task '{task_id}' not found in plan '{plan.plan_id}'")
+        task.status = TaskStatus.COMPLETED
+        task.result = result
+        task.completed_at = datetime.now().isoformat()
 
     def mark_failed(self, plan: TaskPlan, task_id: str, error: str) -> None:
-        """Mark a task as failed and block dependents."""
-        task = plan.tasks.get(task_id)
-        if task:
-            task.status = TaskStatus.FAILED
-            task.error = error
-            task.completed_at = datetime.now().isoformat()
+        """Mark a task as failed and block dependents.
 
-            # Block all downstream tasks
-            self._propagate_block(plan, task_id)
+        Raises:
+            KeyError: If task_id does not exist in the plan.
+        """
+        task = plan.tasks.get(task_id)
+        if task is None:
+            raise KeyError(f"Task '{task_id}' not found in plan '{plan.plan_id}'")
+        task.status = TaskStatus.FAILED
+        task.error = error
+        task.completed_at = datetime.now().isoformat()
+
+        # Block all downstream tasks
+        self._propagate_block(plan, task_id)
 
     def _propagate_block(self, plan: TaskPlan, failed_id: str) -> None:
         """Block all tasks that transitively depend on a failed task."""

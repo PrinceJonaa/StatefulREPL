@@ -223,12 +223,14 @@ class SQLiteEventStore:
         initial: Dict[str, Any],
         up_to: Optional[int] = None,
     ) -> Dict[str, Any]:
+        params: list = []
         sql = "SELECT timestamp, layer, operation, data FROM events ORDER BY id ASC"
         if up_to is not None:
-            sql += f" LIMIT {int(up_to)}"
+            sql += " LIMIT ?"
+            params.append(int(up_to))
 
         with self._conn() as conn:
-            rows = conn.execute(sql).fetchall()
+            rows = conn.execute(sql, params).fetchall()
 
         state = dict(initial)
         for row in rows:

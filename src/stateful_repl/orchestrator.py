@@ -27,6 +27,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import inspect
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -214,6 +215,7 @@ class AsyncSagaManager:
         self._sagas: Dict[str, SagaRecord] = {}
         self._step_defs: Dict[str, List[SagaStepDef]] = {}  # saga_id → step defs
         self._completion_events: Dict[str, asyncio.Event] = {}
+        self._tasks: Dict[str, asyncio.Task] = {}  # saga_id → background task
 
     async def _emit(self, topic: str, saga_id: str, **extra: Any) -> None:
         """Emit an event to the message bus (if connected)."""
@@ -227,14 +229,14 @@ class AsyncSagaManager:
     async def _run_action(self, fn: ActionFn) -> Any:
         """Run an action that may be sync or async."""
         result = fn()
-        if asyncio.iscoroutine(result) or asyncio.isfuture(result):
+        if inspect.isawaitable(result):
             return await result
         return result
 
     async def _run_compensation(self, fn: CompensationFn, result: Any) -> None:
         """Run a compensation that may be sync or async."""
         comp_result = fn(result)
-        if asyncio.iscoroutine(comp_result) or asyncio.isfuture(comp_result):
+        if inspect.isawaitable(comp_result):
             await comp_result
 
     async def _execute_step(
@@ -318,8 +320,10 @@ class AsyncSagaManager:
         self._step_defs[saga_id] = steps
         self._completion_events[saga_id] = asyncio.Event()
 
-        # Launch execution in background
-        asyncio.create_task(self._run_saga(saga_id))
+        # Launch execution in background (store reference to prevent GC)
+        task = asyncio.create_task(self._run_saga(saga_id))
+        self._tasks[saga_id] = task
+        task.add_done_callback(lambda t: self._tasks.pop(saga_id, None))
 
         await self._emit(Topics.SAGA_START, saga_id, name=name)
         return saga_id
@@ -363,6 +367,7 @@ class AsyncSagaManager:
             )
 
             # Compensate in reverse order
+            compensation_failed = False
             for step_def, result in reversed(completed_steps):
                 step_record = record.steps[step_def.name]
                 step_record.status = StepStatus.COMPENSATING
@@ -376,11 +381,16 @@ class AsyncSagaManager:
                         status="compensated",
                     )
                 except Exception as comp_exc:
+                    compensation_failed = True
+                    step_record.status = StepStatus.FAILED
                     step_record.error = (
                         f"Action failed: {exc}; Compensation also failed: {comp_exc}"
                     )
 
-            record.status = SagaStatus.COMPENSATED
+            record.status = (
+                SagaStatus.FAILED if compensation_failed
+                else SagaStatus.COMPENSATED
+            )
             record.completed_at = datetime.now().isoformat()
 
         finally:
@@ -417,7 +427,11 @@ class AsyncSagaManager:
         return sagas
 
     def clear(self) -> None:
-        """Clear all saga records."""
+        """Clear all saga records and cancel pending tasks."""
+        for task in self._tasks.values():
+            if not task.done():
+                task.cancel()
         self._sagas.clear()
         self._step_defs.clear()
         self._completion_events.clear()
+        self._tasks.clear()

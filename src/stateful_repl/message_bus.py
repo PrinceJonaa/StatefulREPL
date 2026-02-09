@@ -120,6 +120,7 @@ class InProcessBus(MessageBus):
         self._history_limit = history_limit
         self._handlers: Dict[str, List[Callable]] = defaultdict(list)  # topic → callbacks
         self._lock = asyncio.Lock()
+        self._last_handler_error: Optional[Exception] = None
 
     def _ensure_inbox(self, agent_id: str) -> asyncio.Queue[Message]:
         if agent_id not in self._inboxes:
@@ -149,7 +150,7 @@ class InProcessBus(MessageBus):
         """Find all agents subscribed to patterns matching this topic."""
         matched: Set[str] = set()
         for pattern, agents in self._topic_subscribers.items():
-            if fnmatch.fnmatch(topic, pattern) or pattern == topic:
+            if fnmatch.fnmatch(topic, pattern):
                 matched.update(agents)
         return matched
 
@@ -183,8 +184,9 @@ class InProcessBus(MessageBus):
                         result = handler(message)
                         if asyncio.iscoroutine(result):
                             await result
-                    except Exception:
-                        pass  # Handlers must not crash the bus
+                    except Exception as handler_exc:
+                        # Handlers must not crash the bus, but record the error
+                        self._last_handler_error = handler_exc
 
     async def send(self, agent_id: str, message: Message) -> None:
         """Send a message directly to a specific agent's inbox."""
@@ -220,6 +222,17 @@ class InProcessBus(MessageBus):
                     pass
                 inbox.put_nowait(message)
 
+    def _is_expired(self, message: Message) -> bool:
+        """Check if a message has exceeded its TTL."""
+        if message.ttl is None:
+            return False
+        try:
+            sent = datetime.fromisoformat(message.timestamp)
+            elapsed = (datetime.now() - sent).total_seconds()
+            return elapsed > message.ttl
+        except (ValueError, TypeError):
+            return False
+
     async def receive(
         self,
         agent_id: str,
@@ -230,12 +243,18 @@ class InProcessBus(MessageBus):
 
         Returns None on timeout (if timeout is set).
         Blocks indefinitely if timeout is None.
+        Expired messages (past TTL) are silently discarded.
         """
         inbox = self._ensure_inbox(agent_id)
         try:
             if timeout is not None:
-                return await asyncio.wait_for(inbox.get(), timeout=timeout)
-            return await inbox.get()
+                msg = await asyncio.wait_for(inbox.get(), timeout=timeout)
+            else:
+                msg = await inbox.get()
+            # Discard expired messages and try again non-blocking
+            if self._is_expired(msg):
+                return await self.receive_nowait(agent_id)
+            return msg
         except (asyncio.TimeoutError, asyncio.CancelledError):
             return None
 
