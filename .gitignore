@@ -1,0 +1,28 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+
+# Loom runtime files (gitignore-optional — you may want to track loom_state.md)
+demo_state.md
+persistent_state.md
+loom_events_*.json
+demo_events.json
+loom_archives/
+
+# OS
+.DS_Store
+Thumbs.db
