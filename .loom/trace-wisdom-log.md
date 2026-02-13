@@ -39,3 +39,10 @@
   newrule: "Before tuning algorithms, define explicit gate metrics and add test oracles for each metric family."
   glyphstamp: "metrics-before-tuning"
   date: 2026-02-13
+
+- id: SCAR-004
+  scar: "Policy + CI checks alone still depended on humans manually writing `.loom` entries."
+  boon: "Added runtime API/CLI packet write-back path so required entries can be appended programmatically."
+  newrule: "For non-trivial automated workflows, call runtime write-back endpoint or CLI command as part of completion flow."
+  glyphstamp: "runtime-writeback-path"
+  date: 2026-02-13

@@ -116,6 +116,25 @@ def make_parser() -> argparse.ArgumentParser:
     ag = sub.add_parser("agents", help="Show Phase 3 agent system status")
     ag.add_argument("--plan", default=None, help="Create a plan for a goal")
 
+    # writeback (Phase 4)
+    wb = sub.add_parser("writeback", help="Auto-append required .loom entries")
+    wb.add_argument("--artifact-name", required=True)
+    wb.add_argument("--artifact-type", required=True)
+    wb.add_argument("--artifact-path", required=True)
+    wb.add_argument("--claim", required=True, help="Claim statement")
+    wb.add_argument("--scope", default="module", choices=["local", "module", "system"])
+    wb.add_argument("--confidence", type=float, default=0.8)
+    wb.add_argument("--falsifies", required=True)
+    wb.add_argument("--oracle", required=True, help="Oracle name")
+    wb.add_argument("--method", default="test")
+    wb.add_argument("--oracle-command", required=True)
+    wb.add_argument("--expected", required=True)
+    wb.add_argument("--owner", default="cli")
+    wb.add_argument("--scar", default="")
+    wb.add_argument("--boon", default="")
+    wb.add_argument("--newrule", default="")
+    wb.add_argument("--glyphstamp", default="")
+
     return p
 
 
@@ -273,6 +292,31 @@ def main(argv=None):
             print(f"  Modules: message_bus, orchestrator, planner, agents, router")
             print(f"  Agent roles: coordinator, builder, verifier, distiller")
             print(f"\nUse --plan '<goal>' to create a task plan.")
+
+    elif args.command == "writeback":
+        from stateful_repl.loom_writeback import LoomWriteback, WritebackPacket
+
+        packet = WritebackPacket(
+            artifact_name=args.artifact_name,
+            artifact_type=args.artifact_type,
+            artifact_path=args.artifact_path,
+            claim_statement=args.claim,
+            claim_scope=args.scope,
+            claim_confidence=args.confidence,
+            claim_falsifies=args.falsifies,
+            oracle_name=args.oracle,
+            oracle_method=args.method,
+            oracle_command=args.oracle_command,
+            oracle_expected=args.expected,
+            scar=args.scar,
+            boon=args.boon,
+            newrule=args.newrule,
+            glyphstamp=args.glyphstamp,
+        )
+
+        writer = LoomWriteback(workspace_root=str(Path(args.file).resolve().parent))
+        ids = writer.append_minimum(packet, owner=args.owner)
+        print(json.dumps({"ok": True, "ids": ids}, indent=2))
 
 
 if __name__ == "__main__":

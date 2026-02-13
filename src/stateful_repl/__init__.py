@@ -43,6 +43,7 @@ from stateful_repl.calibration import (
     CalibrationReport,
     CalibrationQuality,
 )
+from stateful_repl.loom_writeback import LoomWriteback, WritebackPacket
 
 __all__ = [
     # Phase 1
@@ -99,5 +100,8 @@ __all__ = [
     "CalibrationSample",
     "CalibrationReport",
     "CalibrationQuality",
+    # Phase 4 — Loom runtime write-back
+    "LoomWriteback",
+    "WritebackPacket",
 ]
 __version__ = "0.4.0"

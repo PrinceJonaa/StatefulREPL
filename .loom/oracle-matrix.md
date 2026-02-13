@@ -73,3 +73,12 @@ ORACLE-006: Phase 4 metric gates regression
   last_run: 2026-02-13
   result: pass
   notes: Added 6 metric-specific tests; full suite now at 247 passes.
+
+ORACLE-007: Runtime write-back automation
+  verifies: CLAIM-006
+  method: test
+  command: pytest tests/test_loom_writeback.py tests/test_phase4.py -q && pytest tests/ -q
+  expected: endpoint/utility tests pass and full suite remains green
+  last_run: 2026-02-13
+  result: pass
+  notes: Added dedicated writeback tests; full suite now at 252 passes.

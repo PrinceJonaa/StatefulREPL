@@ -66,3 +66,11 @@ ART-006: Phase 4 measurable quality gates
   created: 2026-02-13
   status: active
   notes: Adds retention metrics, prefetch hit-rate@k/MRR, and calibration holdout Brier metrics with API endpoints.
+
+ART-007: Runtime Loom write-back automation
+  type: code
+  path: src/stateful_repl/loom_writeback.py, src/stateful_repl/server.py, src/stateful_repl/cli.py
+  owner: human+copilot
+  created: 2026-02-13
+  status: active
+  notes: Introduces packet-based runtime append API and CLI command for ART/CLAIM/ORACLE/SCAR writes.

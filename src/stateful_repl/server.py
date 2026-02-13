@@ -41,6 +41,7 @@ from stateful_repl.events import create_event_store, SQLiteEventStore
 from stateful_repl.compression import ExtractiveCompressor
 from stateful_repl.prefetch import PredictivePrefetchEngine
 from stateful_repl.calibration import CalibrationLearner, CalibrationSample
+from stateful_repl.loom_writeback import LoomWriteback, WritebackPacket
 
 
 # ─────────────────────────────────────────────────────────
@@ -150,6 +151,25 @@ class ReplayResponse(BaseModel):
     state: Dict[str, Any]
 
 
+class LoomWritebackRequest(BaseModel):
+    artifact_name: str
+    artifact_type: str
+    artifact_path: str
+    claim_statement: str
+    claim_scope: str = "module"
+    claim_confidence: float = Field(default=0.8, ge=0.0, le=1.0)
+    claim_falsifies: str
+    oracle_name: str
+    oracle_method: str = "test"
+    oracle_command: str
+    oracle_expected: str
+    scar: str = ""
+    boon: str = ""
+    newrule: str = ""
+    glyphstamp: str = ""
+    owner: str = "runtime"
+
+
 # ─────────────────────────────────────────────────────────
 # Global state
 # ─────────────────────────────────────────────────────────
@@ -157,6 +177,7 @@ class ReplayResponse(BaseModel):
 STATE_FILE = os.environ.get("LOOM_STATE_FILE", "loom_state.md")
 EVENT_BACKEND = os.environ.get("LOOM_EVENT_BACKEND", "sqlite")
 EVENT_PATH = os.environ.get("LOOM_EVENT_PATH", "events.db")
+WORKSPACE_ROOT = os.environ.get("LOOM_WORKSPACE_ROOT", str(Path.cwd()))
 
 _repl: Optional[LoomREPL] = None
 _evaluator: Optional[QualityEvaluator] = None
@@ -165,6 +186,7 @@ _sse_subscribers: list = []
 _compressor: Optional[ExtractiveCompressor] = None
 _prefetcher: Optional[PredictivePrefetchEngine] = None
 _calibration: Optional[CalibrationLearner] = None
+_loom_writeback: Optional[LoomWriteback] = None
 
 
 def _get_repl() -> LoomREPL:
@@ -207,6 +229,13 @@ def _get_calibration() -> CalibrationLearner:
     if _calibration is None:
         _calibration = CalibrationLearner()
     return _calibration
+
+
+def _get_loom_writeback() -> LoomWriteback:
+    global _loom_writeback
+    if _loom_writeback is None:
+        _loom_writeback = LoomWriteback(workspace_root=WORKSPACE_ROOT)
+    return _loom_writeback
 
 
 async def _broadcast_sse(event_type: str, data: dict) -> None:
@@ -259,6 +288,7 @@ async def lifespan(app: FastAPI):
     _get_compressor()
     _get_prefetcher()
     _get_calibration()
+    _get_loom_writeback()
     yield
     if _repl:
         _repl.save_state()
@@ -721,3 +751,27 @@ def calibration_metrics(body: CalibrationMetricsRequest):
     samples = [CalibrationSample(predicted=s.predicted, observed=s.observed) for s in body.samples]
     quality = learner.evaluate_holdout(samples, holdout_ratio=body.holdout_ratio)
     return quality.to_dict()
+
+
+@app.post("/loom/writeback")
+def loom_writeback(body: LoomWritebackRequest):
+    """Append ART/CLAIM/ORACLE and optional SCAR entries at runtime."""
+    packet = WritebackPacket(
+        artifact_name=body.artifact_name,
+        artifact_type=body.artifact_type,
+        artifact_path=body.artifact_path,
+        claim_statement=body.claim_statement,
+        claim_scope=body.claim_scope,
+        claim_confidence=body.claim_confidence,
+        claim_falsifies=body.claim_falsifies,
+        oracle_name=body.oracle_name,
+        oracle_method=body.oracle_method,
+        oracle_command=body.oracle_command,
+        oracle_expected=body.oracle_expected,
+        scar=body.scar,
+        boon=body.boon,
+        newrule=body.newrule,
+        glyphstamp=body.glyphstamp,
+    )
+    ids = _get_loom_writeback().append_minimum(packet=packet, owner=body.owner)
+    return {"ok": True, "ids": ids}

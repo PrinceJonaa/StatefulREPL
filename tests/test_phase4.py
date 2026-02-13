@@ -196,9 +196,17 @@ class TestPhase4ServerEndpoints:
     def clean_server_state(self, tmp_path, monkeypatch):
         state_file = str(tmp_path / "test_state.md")
         event_db = str(tmp_path / "test_events.db")
+        loom_dir = tmp_path / ".loom"
+        loom_dir.mkdir(parents=True, exist_ok=True)
+        (loom_dir / "artifact-registry.md").write_text("# Artifact Registry\n\n## Registry\n", encoding="utf-8")
+        (loom_dir / "claim-ledger.md").write_text("# Claim Ledger\n\n## Claims\n", encoding="utf-8")
+        (loom_dir / "oracle-matrix.md").write_text("# Oracle Matrix\n\n## Oracles\n", encoding="utf-8")
+        (loom_dir / "trace-wisdom-log.md").write_text("# Trace Wisdom Log\n\n## Entries\n", encoding="utf-8")
+
         monkeypatch.setenv("LOOM_STATE_FILE", state_file)
         monkeypatch.setenv("LOOM_EVENT_BACKEND", "sqlite")
         monkeypatch.setenv("LOOM_EVENT_PATH", event_db)
+        monkeypatch.setenv("LOOM_WORKSPACE_ROOT", str(tmp_path))
 
         import stateful_repl.server as srv
 
@@ -208,10 +216,12 @@ class TestPhase4ServerEndpoints:
         srv._compressor = None
         srv._prefetcher = None
         srv._calibration = None
+        srv._loom_writeback = None
         srv._sse_subscribers.clear()
         srv.STATE_FILE = state_file
         srv.EVENT_BACKEND = "sqlite"
         srv.EVENT_PATH = event_db
+        srv.WORKSPACE_ROOT = str(tmp_path)
         yield
 
     @pytest.fixture
@@ -323,6 +333,30 @@ class TestPhase4ServerEndpoints:
         payload = r.json()
         assert "holdout_brier_before" in payload
         assert "holdout_brier_after" in payload
+
+    def test_loom_writeback_endpoint(self, client):
+        """Runtime writeback endpoint should append required IDs."""
+        r = client.post(
+            "/loom/writeback",
+            json={
+                "artifact_name": "Runtime test artifact",
+                "artifact_type": "test",
+                "artifact_path": "tests/test_phase4.py",
+                "claim_statement": "Runtime writeback endpoint appends required entries.",
+                "claim_scope": "module",
+                "claim_confidence": 0.9,
+                "claim_falsifies": "No IDs returned or files unchanged",
+                "oracle_name": "Runtime writeback oracle",
+                "oracle_method": "test",
+                "oracle_command": "pytest tests/test_phase4.py::TestPhase4ServerEndpoints::test_loom_writeback_endpoint -q",
+                "oracle_expected": "Endpoint returns IDs",
+            },
+        )
+        assert r.status_code == 200
+        ids = r.json()["ids"]
+        assert ids["artifact_id"].startswith("ART-")
+        assert ids["claim_id"].startswith("CLAIM-")
+        assert ids["oracle_id"].startswith("ORACLE-")
 
 
 @pytest.mark.benchmark

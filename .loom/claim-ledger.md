@@ -58,3 +58,11 @@ CLAIM-005: "Phase 4 quality-gate metrics (retention score, hit-rate@k/MRR, holdo
   status: active
   source: ART-006
   date: 2026-02-13
+
+CLAIM-006: "Runtime packetized write-back in server/CLI reduces omission risk versus manual `.loom` editing."
+  scope: system
+  confidence: 0.84
+  falsifies: "Writeback endpoint/CLI usage still leaves frequent missing ART/CLAIM/ORACLE updates in merged changes"
+  status: active
+  source: ART-007
+  date: 2026-02-13
