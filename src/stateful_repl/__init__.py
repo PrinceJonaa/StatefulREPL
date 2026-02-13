@@ -27,6 +27,9 @@ from stateful_repl.agents import (
     TaskResult,
 )
 from stateful_repl.router import TaskRouter, RoutingStrategy
+from stateful_repl.compression import ExtractiveCompressor, CompressionResult
+from stateful_repl.prefetch import PredictivePrefetchEngine, PrefetchCandidate
+from stateful_repl.calibration import CalibrationLearner, CalibrationSample, CalibrationReport
 
 __all__ = [
     # Phase 1
@@ -70,5 +73,15 @@ __all__ = [
     # Phase 3 — Router
     "TaskRouter",
     "RoutingStrategy",
+    # Phase 4 — Compression
+    "ExtractiveCompressor",
+    "CompressionResult",
+    # Phase 4 — Prefetch
+    "PredictivePrefetchEngine",
+    "PrefetchCandidate",
+    # Phase 4 — Calibration
+    "CalibrationLearner",
+    "CalibrationSample",
+    "CalibrationReport",
 ]
-__version__ = "0.3.0"
+__version__ = "0.4.0"

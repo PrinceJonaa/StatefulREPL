@@ -215,6 +215,7 @@ demo_events.json
 loom_archives/
 events.json
 events.db
+calibration_weights.json
 
 # macOS
 .DS_Store

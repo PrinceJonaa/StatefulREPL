@@ -35,9 +35,12 @@ except ImportError as exc:
         "Install with: pip install stateful-repl[server]"
     ) from exc
 
-from stateful_repl.loom_state import LoomREPL
+from stateful_repl.loom_state import LoomREPL, StateEvent
 from stateful_repl.quality import QualityEvaluator, QualityVector
 from stateful_repl.events import create_event_store, SQLiteEventStore
+from stateful_repl.compression import ExtractiveCompressor
+from stateful_repl.prefetch import PredictivePrefetchEngine
+from stateful_repl.calibration import CalibrationLearner, CalibrationSample
 
 
 # ─────────────────────────────────────────────────────────
@@ -100,6 +103,36 @@ class HealthResponse(BaseModel):
     event_count: int
 
 
+class CompressionRequest(BaseModel):
+    text: Optional[str] = ""
+    target_ratio: float = Field(default=0.3, ge=0.05, le=1.0)
+    use_state: bool = False
+
+
+class PrefetchRecordRequest(BaseModel):
+    key: str = Field(min_length=1)
+
+
+class PrefetchPredictRequest(BaseModel):
+    current_keys: list[str] = Field(default_factory=list)
+    limit: int = Field(default=5, ge=1, le=20)
+
+
+class CalibrationSampleRequest(BaseModel):
+    predicted: float = Field(ge=0.0, le=1.0)
+    observed: int = Field(ge=0, le=1)
+
+
+class CalibrationFitRequest(BaseModel):
+    samples: list[CalibrationSampleRequest]
+
+
+class ReplayResponse(BaseModel):
+    event_count: int
+    up_to: Optional[int]
+    state: Dict[str, Any]
+
+
 # ─────────────────────────────────────────────────────────
 # Global state
 # ─────────────────────────────────────────────────────────
@@ -112,6 +145,9 @@ _repl: Optional[LoomREPL] = None
 _evaluator: Optional[QualityEvaluator] = None
 _event_store = None
 _sse_subscribers: list = []
+_compressor: Optional[ExtractiveCompressor] = None
+_prefetcher: Optional[PredictivePrefetchEngine] = None
+_calibration: Optional[CalibrationLearner] = None
 
 
 def _get_repl() -> LoomREPL:
@@ -133,6 +169,27 @@ def _get_event_store():
     if _event_store is None:
         _event_store = create_event_store(backend=EVENT_BACKEND, path=EVENT_PATH)
     return _event_store
+
+
+def _get_compressor() -> ExtractiveCompressor:
+    global _compressor
+    if _compressor is None:
+        _compressor = ExtractiveCompressor()
+    return _compressor
+
+
+def _get_prefetcher() -> PredictivePrefetchEngine:
+    global _prefetcher
+    if _prefetcher is None:
+        _prefetcher = PredictivePrefetchEngine()
+    return _prefetcher
+
+
+def _get_calibration() -> CalibrationLearner:
+    global _calibration
+    if _calibration is None:
+        _calibration = CalibrationLearner()
+    return _calibration
 
 
 async def _broadcast_sse(event_type: str, data: dict) -> None:
@@ -160,6 +217,19 @@ def _save_and_broadcast(repl: LoomREPL, event_type: str, data: dict) -> None:
         pass
 
 
+def _record_event(layer: str, operation: str, data: dict[str, Any]) -> None:
+    """Persist one event into configured event store."""
+    store = _get_event_store()
+    store.emit(
+        StateEvent(
+            timestamp=datetime.now().isoformat(),
+            layer=layer,
+            operation=operation,
+            data=data,
+        )
+    )
+
+
 # ─────────────────────────────────────────────────────────
 # Application
 # ─────────────────────────────────────────────────────────
@@ -169,15 +239,18 @@ async def lifespan(app: FastAPI):
     """Load state on startup, save on shutdown."""
     _get_repl()
     _get_event_store()
+    _get_compressor()
+    _get_prefetcher()
+    _get_calibration()
     yield
     if _repl:
-        _repl.save_state(STATE_FILE)
+        _repl.save_state()
 
 
 app = FastAPI(
     title="StatefulREPL — The Loom",
     description="Stateful AI memory & orchestration API",
-    version="0.3.0",
+    version="0.4.0",
     lifespan=lifespan,
 )
 
@@ -199,7 +272,7 @@ def health():
     store = _get_event_store()
     return HealthResponse(
         status="ok",
-        version="0.3.0",
+        version="0.4.0",
         state_file=STATE_FILE,
         event_count=store.count(),
     )
@@ -224,6 +297,8 @@ def read_state(layer: Optional[str] = Query(None, pattern="^(L1|L2|L3|ALL)$")):
 def update_goal(body: GoalUpdate):
     repl = _get_repl()
     repl.update_l1("goal", body.goal)
+    _record_event("L1", "update.goal", {"new": body.goal})
+    _get_prefetcher().record_access("goal")
     _save_and_broadcast(repl, "goal_updated", {"goal": body.goal})
     return {"ok": True, "goal": body.goal}
 
@@ -232,6 +307,8 @@ def update_goal(body: GoalUpdate):
 def add_artifact(body: ArtifactAdd):
     repl = _get_repl()
     repl.update_l1("artifacts", body.artifact)
+    _record_event("L1", "update.artifacts", {"new": body.artifact})
+    _get_prefetcher().record_access(str(body.artifact))
     _save_and_broadcast(repl, "artifact_added", {"artifact": body.artifact})
     return {"ok": True}
 
@@ -240,6 +317,8 @@ def add_artifact(body: ArtifactAdd):
 def add_constraint(body: ConstraintAdd):
     repl = _get_repl()
     repl.update_l1("constraints", body.constraint)
+    _record_event("L1", "update.constraints", {"new": body.constraint})
+    _get_prefetcher().record_access("constraints")
     _save_and_broadcast(repl, "constraint_added", {"constraint": body.constraint})
     return {"ok": True}
 
@@ -248,6 +327,8 @@ def add_constraint(body: ConstraintAdd):
 def add_question(body: QuestionAdd):
     repl = _get_repl()
     repl.update_l1("open_questions", body.question)
+    _record_event("L1", "update.open_questions", {"new": body.question})
+    _get_prefetcher().record_access("open_questions")
     _save_and_broadcast(repl, "question_added", {"question": body.question})
     return {"ok": True}
 
@@ -256,6 +337,8 @@ def add_question(body: QuestionAdd):
 def add_log(body: LogEntry):
     repl = _get_repl()
     repl.append("L2", body.content)
+    _record_event("L2", "append", {"content": body.content})
+    _get_prefetcher().record_access("L2")
     _save_and_broadcast(repl, "log_added", {"content": body.content})
     return {"ok": True}
 
@@ -265,6 +348,12 @@ def add_rule(body: RuleAdd):
     repl = _get_repl()
     repl.append("L3", {
         "type": "rule",
+        "rule_id": body.rule_id,
+        "when": body.when,
+        "then": body.then,
+        "why": body.why,
+    })
+    _record_event("L3", "append", {
         "rule_id": body.rule_id,
         "when": body.when,
         "then": body.then,
@@ -285,6 +374,13 @@ def add_scar(body: ScarAdd):
         "glyphstamp": body.glyphstamp,
         "userfeedback": body.userfeedback,
     })
+    _record_event("L3", "append", {
+        "scar": body.scar,
+        "boon": body.boon,
+        "newrule": body.newrule,
+        "glyphstamp": body.glyphstamp,
+        "userfeedback": body.userfeedback,
+    })
     _save_and_broadcast(repl, "scar_added", {"scar": body.scar})
     return {"ok": True}
 
@@ -297,6 +393,7 @@ def add_scar(body: ScarAdd):
 def consolidate_l1_l2():
     repl = _get_repl()
     repl.consolidate_l1_to_l2()
+    _record_event("L2", "consolidate_from_l1", {"from": "L1", "to": "L2"})
     _save_and_broadcast(repl, "consolidated", {"from": "L1", "to": "L2"})
     return {"ok": True, "from": "L1", "to": "L2"}
 
@@ -305,6 +402,7 @@ def consolidate_l1_l2():
 def consolidate_l2_l3():
     repl = _get_repl()
     repl.consolidate_l2_to_l3()
+    _record_event("L3", "consolidate_from_l2", {"from": "L2", "to": "L3"})
     _save_and_broadcast(repl, "consolidated", {"from": "L2", "to": "L3"})
     return {"ok": True, "from": "L2", "to": "L3"}
 
@@ -355,6 +453,57 @@ def list_events(
     store = _get_event_store()
     events = store.get_events(layer=layer, since=since)
     return {"events": events[-limit:], "total": len(events)}
+
+
+def _replay_reducer(state: Dict[str, Any], event: Dict[str, Any]) -> Dict[str, Any]:
+    """Reducer used by time-travel replay endpoint."""
+    layer = event.get("layer", "")
+    operation = event.get("operation", "")
+    data = event.get("data", {})
+
+    if layer == "L1" and operation.startswith("update."):
+        field = operation.split("update.", 1)[1]
+        state.setdefault("L1", {})[field] = data.get("new")
+    elif layer == "L1" and operation == "clear":
+        state["L1"] = {
+            "goal": "",
+            "constraints": [],
+            "artifacts": [],
+            "open_questions": [],
+        }
+    elif layer == "L2" and operation in {"append", "consolidate_from_l1"}:
+        state.setdefault("L2", []).append(data)
+    elif layer == "L3" and operation == "append":
+        if "rule_id" in data:
+            state.setdefault("L3", {}).setdefault("rules", []).append(data)
+        elif "concept" in data:
+            state.setdefault("L3", {}).setdefault("concepts", []).append(data)
+        elif "scar" in data or "boon" in data:
+            state.setdefault("L3", {}).setdefault("tracewisdomlog", []).append(data)
+
+    return state
+
+
+@app.get("/events/replay", response_model=ReplayResponse)
+def replay_events(up_to: Optional[int] = Query(None, ge=1)):
+    """Time-travel replay to reconstruct state up to event N."""
+    store = _get_event_store()
+    initial = {
+        "L1": {
+            "goal": "",
+            "constraints": [],
+            "artifacts": [],
+            "open_questions": [],
+        },
+        "L2": [],
+        "L3": {
+            "rules": [],
+            "concepts": [],
+            "tracewisdomlog": [],
+        },
+    }
+    replayed = store.replay(_replay_reducer, initial=initial, up_to=up_to)
+    return ReplayResponse(event_count=store.count(), up_to=up_to, state=replayed)
 
 
 # ─────────────────────────────────────────────────────────
@@ -456,3 +605,66 @@ def router_summary():
     from stateful_repl.router import TaskRouter
     router = TaskRouter()
     return router.summary()
+
+
+# ─────────────────────────────────────────────────────────
+# Phase 4 — Compression, Prefetch, Calibration, Time-travel
+# ─────────────────────────────────────────────────────────
+
+@app.get("/phase4/status")
+def phase4_status():
+    """Phase 4 feature availability overview."""
+    return {
+        "version": "0.4.0",
+        "phase": 4,
+        "features": {
+            "context_compression": True,
+            "predictive_prefetch": True,
+            "calibration_learning": True,
+            "time_travel_replay": True,
+        },
+    }
+
+
+@app.post("/context/compress")
+def compress_context(body: CompressionRequest):
+    """Compress provided text or current state into compact context."""
+    compressor = _get_compressor()
+    if body.use_state:
+        result = compressor.compress_state(_get_repl().read_state("ALL"), target_ratio=body.target_ratio)
+    else:
+        text = body.text or ""
+        result = compressor.compress_text(text, target_ratio=body.target_ratio)
+    return result.to_dict()
+
+
+@app.post("/prefetch/record")
+def prefetch_record(body: PrefetchRecordRequest):
+    """Record one access event for prefetch learning."""
+    _get_prefetcher().record_access(body.key)
+    return {"ok": True, "summary": _get_prefetcher().summary()}
+
+
+@app.post("/prefetch/predict")
+def prefetch_predict(body: PrefetchPredictRequest):
+    """Predict likely next context keys/artifacts."""
+    candidates = _get_prefetcher().predict_next(body.current_keys, limit=body.limit)
+    return {
+        "candidates": [c.to_dict() for c in candidates],
+        "summary": _get_prefetcher().summary(),
+    }
+
+
+@app.get("/calibration")
+def calibration_summary():
+    """Get current calibration parameters."""
+    return _get_calibration().summary()
+
+
+@app.post("/calibration/fit")
+def calibration_fit(body: CalibrationFitRequest):
+    """Fit calibration model from prediction/outcome samples."""
+    learner = _get_calibration()
+    samples = [CalibrationSample(predicted=s.predicted, observed=s.observed) for s in body.samples]
+    report = learner.fit(samples)
+    return report.to_dict()
