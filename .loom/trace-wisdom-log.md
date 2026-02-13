@@ -60,3 +60,10 @@
   newrule: "Run one writeback smoke packet after guard changes."
   glyphstamp: "guard-smoke"
   date: 2026-02-13
+
+- id: SCAR-007
+  scar: "Runtime write-back validates current state but does not itself provide continuous monitoring."
+  boon: "Added scheduled watchdog workflow + script for ongoing 24x7 health checks and alerting."
+  newrule: "Pair policy enforcement with periodic unattended verification jobs."
+  glyphstamp: "watchdog-loop"
+  date: 2026-02-13

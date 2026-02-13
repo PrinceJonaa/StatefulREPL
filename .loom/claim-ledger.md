@@ -82,3 +82,11 @@ CLAIM-008: "Loom guard + runtime writeback are operational in current workspace.
   status: active
   source: ART-009
   date: 2026-02-13
+
+CLAIM-009: "Scheduled watchdog checks provide ongoing 24x7 enforcement signal for Loom ledger health in Copilot/GitHub workflows."
+  scope: system
+  confidence: 0.82
+  falsifies: "Watchdog fails to detect missing/stale Loom entries or does not alert via issue workflow"
+  status: active
+  source: ART-010
+  date: 2026-02-13
