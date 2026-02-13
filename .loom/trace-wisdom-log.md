@@ -19,4 +19,16 @@
 
 <!-- Add new entries below. Use sequential IDs starting from SCAR-001. -->
 
-_No wisdom entries yet. Add entries after failures, surprises, or significant learnings._
+- id: SCAR-001
+  scar: "Non-trivial implementation sessions completed without `.loom` append operations."
+  boon: "Added explicit activation and mandatory write-back gates in global instructions."
+  newrule: "Do not finalize any non-trivial task before appending ART/CLAIM/ORACLE (and SCAR when relevant)."
+  glyphstamp: "writeback-before-done"
+  date: 2026-02-13
+
+- id: SCAR-002
+  scar: "Phase 4 tests initially failed from missing goal retention and empty calibration file parsing."
+  boon: "Hardened compressor and calibration loader; full suite returns to passing."
+  newrule: "Protect semantic anchors (goal/constraints) in compression and treat persisted files as potentially empty/corrupt."
+  glyphstamp: "anchor-and-corruption-guard"
+  date: 2026-02-13

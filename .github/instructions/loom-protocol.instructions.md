@@ -15,6 +15,18 @@ Every agent MUST:
 2. Update relevant `.loom/` files after completing work
 3. Never delete entries — append new state, mark old entries as superseded
 
+## Enforcement Rule
+
+For any non-trivial task touching code, tests, architecture, or API behavior, the agent must append:
+
+- `ART-XXX` in `artifact-registry.md`
+- `CLAIM-XXX` in `claim-ledger.md`
+- `ORACLE-XXX` in `oracle-matrix.md`
+
+When there is a failure or learning event, also append `SCAR-XXX` in `trace-wisdom-log.md`.
+
+If no `.loom` update is needed, the agent must explicitly justify why (rare case).
+
 ## File Roles
 
 | File | Purpose | Updated By |

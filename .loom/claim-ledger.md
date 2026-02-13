@@ -19,4 +19,34 @@ CLAIM-<ID>: "<statement>"
 
 <!-- Add new entries below. Use sequential IDs. -->
 
-_No claims recorded yet. Add entries as architectural decisions are made._
+CLAIM-001: "Extractive compression can reduce context size while preserving core task signal for orchestration prompts."
+  scope: module
+  confidence: 0.82
+  falsifies: "Compression outputs repeatedly omit goal/critical constraints in regression tests"
+  status: active
+  source: ART-001
+  date: 2026-02-13
+
+CLAIM-002: "A transition+recency model provides useful first-pass prefetch candidates for session workflows."
+  scope: module
+  confidence: 0.77
+  falsifies: "Top-3 prediction recall remains below 0.4 on representative traces"
+  status: active
+  source: ART-002
+  date: 2026-02-13
+
+CLAIM-003: "Affine post-hoc calibration reduces or maintains Brier score versus uncalibrated confidence."
+  scope: module
+  confidence: 0.79
+  falsifies: "Brier-after is consistently worse than Brier-before on holdout samples"
+  status: active
+  source: ART-003
+  date: 2026-02-13
+
+CLAIM-004: "Event-store replay endpoint can reconstruct meaningful prior state for time-travel debugging."
+  scope: system
+  confidence: 0.74
+  falsifies: "Replay state diverges from expected L1/L2/L3 outcomes in endpoint tests"
+  status: active
+  source: ART-004
+  date: 2026-02-13

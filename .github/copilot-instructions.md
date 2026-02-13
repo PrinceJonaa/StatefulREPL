@@ -14,6 +14,15 @@ This workspace uses **The Loom**: a presence-first coordination protocol that tu
 
 The full protocol is in `agents.md` or `AGENTS.md` (auto-loaded if present).
 
+## Activation Checklist (must pass before complex work)
+
+1. `agents.md` (or `AGENTS.md`) exists at workspace root.
+2. `.github/copilot-instructions.md` exists and is being applied.
+3. VS Code setting `chat.useAgentsMdFile` is enabled.
+4. `.loom/` files are readable and writable.
+
+If any check fails, the assistant must report exactly what failed and continue with best-effort behavior.
+
 ## Shared Coordination Substrate
 
 All agents share living documents in `.loom/`. **Read before acting. Update after acting.**
@@ -26,6 +35,27 @@ All agents share living documents in `.loom/`. **Read before acting. Update afte
 | `.loom/oracle-matrix.md` | Verification tests linked to claims and contracts |
 | `.loom/paradox-queue.md` | Contradictions held explicitly, not forced to resolution |
 | `.loom/trace-wisdom-log.md` | Scars, boons, and rules learned from failures |
+
+## Mandatory Write-Back Policy (non-optional)
+
+For every non-trivial code or architecture task, the assistant MUST append at least:
+
+- one `ART-XXX` entry in `.loom/artifact-registry.md`
+- one `CLAIM-XXX` entry in `.loom/claim-ledger.md`
+- one `ORACLE-XXX` entry in `.loom/oracle-matrix.md`
+- one `SCAR-XXX` entry in `.loom/trace-wisdom-log.md` (when failure/learning occurred)
+
+If no failure occurred, append a short wisdom entry with a preventive rule learned.
+
+### Definition of Done (DoD)
+
+A task is **not done** until:
+
+1. Code/tests/docs changes are applied.
+2. Verification/oracle is run and reported.
+3. Required `.loom/` entries are appended.
+
+If `.loom/` write-back is skipped, the response must explicitly say: `DoD incomplete: missing Loom write-back`.
 
 ## Claim-Tuple Format
 

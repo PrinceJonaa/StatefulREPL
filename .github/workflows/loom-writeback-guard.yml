@@ -1,0 +1,63 @@
+name: Loom Writeback Guard
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+  push:
+    branches: [ main, develop ]
+
+jobs:
+  loom-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed files
+        id: changes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            BASE="origin/${{ github.base_ref }}"
+            git fetch origin "${{ github.base_ref }}" --depth=1
+            DIFF_FILES=$(git diff --name-only "$BASE...HEAD")
+          else
+            BEFORE="${{ github.event.before }}"
+            if [[ "$BEFORE" == "0000000000000000000000000000000000000000" ]]; then
+              DIFF_FILES=$(git diff --name-only HEAD~1..HEAD || true)
+            else
+              DIFF_FILES=$(git diff --name-only "$BEFORE..HEAD")
+            fi
+          fi
+
+          echo "changed<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$DIFF_FILES" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce Loom write-back for substantive changes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CHANGED='${{ steps.changes.outputs.changed }}'
+          echo "Changed files:"
+          echo "$CHANGED"
+
+          if [[ -z "$CHANGED" ]]; then
+            echo "No changed files detected."
+            exit 0
+          fi
+
+          if echo "$CHANGED" | grep -Eq '^(src/|tests/|agents.md|README.md|docs/)'; then
+            if ! echo "$CHANGED" | grep -Eq '^\.loom/'; then
+              echo "❌ Loom write-back missing."
+              echo "Substantive code/docs changed but no .loom files were updated."
+              echo "Please append ART/CLAIM/ORACLE entries (and SCAR when relevant)."
+              exit 1
+            fi
+          fi
+
+          echo "✅ Loom write-back guard passed."

@@ -19,4 +19,42 @@ ART-<ID>: <name>
 
 <!-- Add new entries below. Use sequential IDs. -->
 
-_No artifacts registered yet. Add entries as work is produced._
+ART-001: Phase 4 compression module
+  type: code
+  path: src/stateful_repl/compression.py
+  owner: human+copilot
+  created: 2026-02-13
+  status: active
+  notes: Extractive compression for text/state context.
+
+ART-002: Phase 4 prefetch module
+  type: code
+  path: src/stateful_repl/prefetch.py
+  owner: human+copilot
+  created: 2026-02-13
+  status: active
+  notes: Transition+recency predictive prefetch engine.
+
+ART-003: Phase 4 calibration module
+  type: code
+  path: src/stateful_repl/calibration.py
+  owner: human+copilot
+  created: 2026-02-13
+  status: active
+  notes: Affine calibration learning and persisted weights.
+
+ART-004: Phase 4 API endpoints
+  type: code
+  path: src/stateful_repl/server.py
+  owner: human+copilot
+  created: 2026-02-13
+  status: active
+  notes: Adds /context/compress, /prefetch/*, /calibration/*, /events/replay.
+
+ART-005: Phase 4 test suite
+  type: test
+  path: tests/test_phase4.py
+  owner: human+copilot
+  created: 2026-02-13
+  status: active
+  notes: Feature + benchmark coverage for phase 4 slice.

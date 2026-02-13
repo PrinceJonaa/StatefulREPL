@@ -20,4 +20,11 @@ PARADOX-<ID>: "<tension in one sentence>"
 
 <!-- Add new entries below. Use sequential IDs. -->
 
-_No paradoxes recorded yet. Add entries when genuine contradictions are discovered._
+PARADOX-001: "Fast implementation flow vs mandatory Loom write-back discipline"
+  pole_a: "Move fast on code delivery to keep momentum and reduce friction"
+  pole_b: "Enforce append-only `.loom` updates every non-trivial task for persistent coherence"
+  status: open
+  date_opened: 2026-02-13
+  date_resolved: 
+  resolution: ""
+  related: CLAIM-004
