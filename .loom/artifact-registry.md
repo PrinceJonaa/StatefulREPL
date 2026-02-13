@@ -74,3 +74,11 @@ ART-007: Runtime Loom write-back automation
   created: 2026-02-13
   status: active
   notes: Introduces packet-based runtime append API and CLI command for ART/CLAIM/ORACLE/SCAR writes.
+
+ART-008: CI Loom guard hardening
+  type: config
+  path: .github/workflows/loom-writeback-guard.yml
+  owner: human+copilot
+  created: 2026-02-13
+  status: active
+  notes: Reduces false positives, adds actionable failure guidance, and supports justified loom:skip override token.

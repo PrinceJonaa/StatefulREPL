@@ -66,3 +66,11 @@ CLAIM-006: "Runtime packetized write-back in server/CLI reduces omission risk ve
   status: active
   source: ART-007
   date: 2026-02-13
+
+CLAIM-007: "A scoped substantive-file matcher plus explicit bypass token reduces Loom-guard false positives without weakening enforcement intent."
+  scope: system
+  confidence: 0.80
+  falsifies: "Guard continues to block routine non-substantive changes at similar rate or allows substantive changes without Loom updates"
+  status: active
+  source: ART-008
+  date: 2026-02-13

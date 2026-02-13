@@ -51,13 +51,76 @@ jobs:
             exit 0
           fi
 
-          if echo "$CHANGED" | grep -Eq '^(src/|tests/|agents.md|README.md|docs/)'; then
-            if ! echo "$CHANGED" | grep -Eq '^\.loom/'; then
-              echo "❌ Loom write-back missing."
-              echo "Substantive code/docs changed but no .loom files were updated."
-              echo "Please append ART/CLAIM/ORACLE entries (and SCAR when relevant)."
-              exit 1
+          # Substantive paths requiring Loom write-back.
+          # Intentionally excludes most workflow/infra/docs churn to reduce false positives.
+          SUBSTANTIVE_REGEX='^(src/|tests/|agents\.md$|README\.md$|docs/prompt_integration\.md$|\.github/copilot-instructions\.md$|\.github/instructions/)'
+
+          SUBSTANTIVE=$(echo "$CHANGED" | grep -E "$SUBSTANTIVE_REGEX" || true)
+          LOOM_CHANGED=$(echo "$CHANGED" | grep -E '^\.loom/' || true)
+
+          echo ""
+          echo "Substantive files:"
+          echo "${SUBSTANTIVE:-<none>}"
+          echo ""
+          echo "Loom files changed:"
+          echo "${LOOM_CHANGED:-<none>}"
+
+          if [[ -z "$SUBSTANTIVE" ]]; then
+            echo "✅ No substantive files matched write-back scope."
+            exit 0
+          fi
+
+          if [[ -n "$LOOM_CHANGED" ]]; then
+            echo "✅ Loom write-back detected for substantive changes."
+            exit 0
+          fi
+
+          # Escape hatch for rare cases where write-back is intentionally not needed.
+          # Use token: loom:skip with justification in PR body/commit message.
+          SKIP_REASON=""
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            SKIP_REASON=$(python - <<'PY'
+import json, os
+path = os.environ.get("GITHUB_EVENT_PATH", "")
+if not path:
+    print("")
+    raise SystemExit(0)
+with open(path, "r", encoding="utf-8") as f:
+    event = json.load(f)
+pr = event.get("pull_request", {})
+text = "\n".join([
+    str(pr.get("title", "")),
+    str(pr.get("body", "")),
+]).lower()
+print("skip" if "loom:skip" in text else "")
+PY
+)
+          else
+            LAST_MSG=$(git log -1 --pretty=%B | tr '[:upper:]' '[:lower:]')
+            if echo "$LAST_MSG" | grep -q 'loom:skip'; then
+              SKIP_REASON="skip"
             fi
           fi
+
+          if [[ "$SKIP_REASON" == "skip" ]]; then
+            echo "⚠️ Loom guard bypassed via loom:skip token."
+            echo "Please ensure this bypass is justified and temporary."
+            exit 0
+          fi
+
+          echo "❌ Loom write-back missing."
+          echo "Substantive changes were detected but no .loom files were updated."
+          echo ""
+          echo "Required minimum:"
+          echo "  - one ART-XXX in .loom/artifact-registry.md"
+          echo "  - one CLAIM-XXX in .loom/claim-ledger.md"
+          echo "  - one ORACLE-XXX in .loom/oracle-matrix.md"
+          echo "  - one SCAR-XXX in .loom/trace-wisdom-log.md (if failure/learning occurred)"
+          echo ""
+          echo "Fast path options:"
+          echo "  1) Use runtime endpoint: POST /loom/writeback"
+          echo "  2) Use CLI: loom writeback --artifact-name ... --claim ... --oracle ..."
+          echo "  3) Rare exception: add 'loom:skip' + reason in PR body/commit message"
+          exit 1
 
           echo "✅ Loom write-back guard passed."

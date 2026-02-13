@@ -46,3 +46,10 @@
   newrule: "For non-trivial automated workflows, call runtime write-back endpoint or CLI command as part of completion flow."
   glyphstamp: "runtime-writeback-path"
   date: 2026-02-13
+
+- id: SCAR-005
+  scar: "Early CI Loom guard matched too broadly and risked false positives for low-impact changes."
+  boon: "Guard now scopes substantive paths, prints concrete remediation steps, and supports explicit justified bypass token."
+  newrule: "Enforcement policies should include clear scope boundaries and humane escape hatches with auditability."
+  glyphstamp: "scoped-enforcement"
+  date: 2026-02-13

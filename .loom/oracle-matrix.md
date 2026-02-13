@@ -82,3 +82,12 @@ ORACLE-007: Runtime write-back automation
   last_run: 2026-02-13
   result: pass
   notes: Added dedicated writeback tests; full suite now at 252 passes.
+
+ORACLE-008: CI guard hardening regression
+  verifies: CLAIM-007
+  method: test
+  command: pytest tests/ -q
+  expected: suite remains green after workflow guard changes
+  last_run: 2026-02-13
+  result: pass
+  notes: Workflow logic updated; guidance and scoped matching validated by review and regression run.
