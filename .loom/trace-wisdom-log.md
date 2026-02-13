@@ -53,3 +53,10 @@
   newrule: "Enforcement policies should include clear scope boundaries and humane escape hatches with auditability."
   glyphstamp: "scoped-enforcement"
   date: 2026-02-13
+
+- id: SCAR-006
+  scar: "Activation needed explicit runtime invocation for demonstration."
+  boon: "Confirmed end-to-end writeback path works on demand."
+  newrule: "Run one writeback smoke packet after guard changes."
+  glyphstamp: "guard-smoke"
+  date: 2026-02-13

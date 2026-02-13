@@ -74,3 +74,11 @@ CLAIM-007: "A scoped substantive-file matcher plus explicit bypass token reduces
   status: active
   source: ART-008
   date: 2026-02-13
+
+CLAIM-008: "Loom guard + runtime writeback are operational in current workspace."
+  scope: system
+  confidence: 0.90
+  falsifies: "Writeback IDs are not appended or guard workflow is missing from repo."
+  status: active
+  source: ART-009
+  date: 2026-02-13
