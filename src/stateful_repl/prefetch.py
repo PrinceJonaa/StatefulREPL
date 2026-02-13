@@ -28,6 +28,22 @@ class PrefetchCandidate:
         }
 
 
+@dataclass
+class PrefetchQuality:
+    """Quality metrics for prefetch predictions."""
+
+    total_predictions: int
+    hit_rate_at_k: float
+    mrr: float
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "total_predictions": self.total_predictions,
+            "hit_rate_at_k": round(self.hit_rate_at_k, 3),
+            "mrr": round(self.mrr, 3),
+        }
+
+
 class PredictivePrefetchEngine:
     """Markov-style prefetch engine with recency bias.
 
@@ -135,3 +151,51 @@ class PredictivePrefetchEngine:
             "tracked_keys": len(self._last_seen),
             "transition_nodes": len(self._transitions),
         }
+
+    def evaluate_trace(self, trace: list[str], k: int = 3, warmup: int = 2) -> PrefetchQuality:
+        """Evaluate prefetch quality on a sequential trace.
+
+        Args:
+            trace: Ordered key access sequence.
+            k: Top-k cutoff for hit-rate.
+            warmup: Number of initial events before evaluating.
+
+        Returns:
+            Prefetch quality metrics.
+        """
+        if k < 1:
+            raise ValueError(f"Invalid k {k}: must be >= 1")
+        if warmup < 1:
+            raise ValueError(f"Invalid warmup {warmup}: must be >= 1")
+        if len(trace) <= warmup:
+            return PrefetchQuality(total_predictions=0, hit_rate_at_k=0.0, mrr=0.0)
+
+        sim = PredictivePrefetchEngine(
+            window_size=self.window_size,
+            recency_weight=self.recency_weight,
+        )
+
+        for key in trace[:warmup]:
+            sim.record_access(key)
+
+        total = 0
+        hits = 0
+        reciprocal_rank_sum = 0.0
+
+        for i in range(warmup, len(trace)):
+            actual = trace[i]
+            anchor = trace[i - 1]
+            preds = sim.predict_next([anchor], limit=k)
+            ranked = [p.key for p in preds]
+
+            total += 1
+            if actual in ranked:
+                hits += 1
+                rank = ranked.index(actual) + 1
+                reciprocal_rank_sum += 1.0 / rank
+
+            sim.record_access(actual)
+
+        hit_rate = hits / total if total else 0.0
+        mrr = reciprocal_rank_sum / total if total else 0.0
+        return PrefetchQuality(total_predictions=total, hit_rate_at_k=hit_rate, mrr=mrr)

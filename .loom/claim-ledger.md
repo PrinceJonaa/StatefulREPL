@@ -50,3 +50,11 @@ CLAIM-004: "Event-store replay endpoint can reconstruct meaningful prior state f
   status: active
   source: ART-004
   date: 2026-02-13
+
+CLAIM-005: "Phase 4 quality-gate metrics (retention score, hit-rate@k/MRR, holdout Brier delta) provide actionable pass/fail signals for optimization decisions."
+  scope: system
+  confidence: 0.81
+  falsifies: "Metrics remain uncorrelated with observed task quality/regression outcomes across repeated runs"
+  status: active
+  source: ART-006
+  date: 2026-02-13

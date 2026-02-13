@@ -46,6 +46,26 @@ class CalibrationReport:
         }
 
 
+@dataclass
+class CalibrationQuality:
+    """Holdout quality metrics for calibration."""
+
+    train_size: int
+    holdout_size: int
+    holdout_brier_before: float
+    holdout_brier_after: float
+    improvement: float
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "train_size": self.train_size,
+            "holdout_size": self.holdout_size,
+            "holdout_brier_before": round(self.holdout_brier_before, 4),
+            "holdout_brier_after": round(self.holdout_brier_after, 4),
+            "improvement": round(self.improvement, 4),
+        }
+
+
 class CalibrationLearner:
     """Learns and persists a simple affine calibration function.
 
@@ -65,24 +85,7 @@ class CalibrationLearner:
         if len(samples) < 3:
             raise ValueError("Need at least 3 samples for calibration")
 
-        preds = [self._clamp01(s.predicted) for s in samples]
-        obs = [1 if s.observed else 0 for s in samples]
-
-        mean_p = statistics.mean(preds)
-        mean_o = statistics.mean(obs)
-
-        var_p = statistics.mean((p - mean_p) ** 2 for p in preds)
-        if var_p == 0:
-            # Degenerate: all predictions same; only offset can adjust.
-            scale = 1.0
-        else:
-            cov = statistics.mean((p - mean_p) * (o - mean_o) for p, o in zip(preds, obs))
-            scale = cov / var_p
-
-        offset = mean_o - scale * mean_p
-
-        before = statistics.mean((p - o) ** 2 for p, o in zip(preds, obs))
-        after = statistics.mean((self._clamp01(offset + scale * p) - o) ** 2 for p, o in zip(preds, obs))
+        offset, scale, before, after = self._fit_params(samples)
 
         self.offset = float(offset)
         self.scale = float(scale)
@@ -94,6 +97,42 @@ class CalibrationLearner:
             brier_after=after,
             offset=self.offset,
             scale=self.scale,
+        )
+
+    def evaluate_holdout(
+        self,
+        samples: list[CalibrationSample],
+        holdout_ratio: float = 0.3,
+    ) -> CalibrationQuality:
+        """Evaluate calibration quality using chronological holdout split."""
+        if len(samples) < 6:
+            raise ValueError("Need at least 6 samples for holdout evaluation")
+        if not 0.1 <= holdout_ratio <= 0.5:
+            raise ValueError(
+                f"Invalid holdout_ratio {holdout_ratio}: must be 0.1-0.5"
+            )
+
+        split = max(3, int(round(len(samples) * (1.0 - holdout_ratio))))
+        split = min(split, len(samples) - 3)
+
+        train = samples[:split]
+        holdout = samples[split:]
+
+        offset, scale, _, _ = self._fit_params(train)
+        hold_preds = [self._clamp01(s.predicted) for s in holdout]
+        hold_obs = [1 if s.observed else 0 for s in holdout]
+
+        brier_before = statistics.mean((p - o) ** 2 for p, o in zip(hold_preds, hold_obs))
+        brier_after = statistics.mean(
+            (self._clamp01(offset + scale * p) - o) ** 2 for p, o in zip(hold_preds, hold_obs)
+        )
+
+        return CalibrationQuality(
+            train_size=len(train),
+            holdout_size=len(holdout),
+            holdout_brier_before=brier_before,
+            holdout_brier_after=brier_after,
+            improvement=brier_before - brier_after,
         )
 
     def calibrate_probability(self, predicted: float) -> float:
@@ -162,3 +201,22 @@ class CalibrationLearner:
 
     def _clamp01(self, value: float) -> float:
         return max(0.0, min(1.0, float(value)))
+
+    def _fit_params(self, samples: list[CalibrationSample]) -> tuple[float, float, float, float]:
+        preds = [self._clamp01(s.predicted) for s in samples]
+        obs = [1 if s.observed else 0 for s in samples]
+
+        mean_p = statistics.mean(preds)
+        mean_o = statistics.mean(obs)
+
+        var_p = statistics.mean((p - mean_p) ** 2 for p in preds)
+        if var_p == 0:
+            scale = 1.0
+        else:
+            cov = statistics.mean((p - mean_p) * (o - mean_o) for p, o in zip(preds, obs))
+            scale = cov / var_p
+
+        offset = mean_o - scale * mean_p
+        before = statistics.mean((p - o) ** 2 for p, o in zip(preds, obs))
+        after = statistics.mean((self._clamp01(offset + scale * p) - o) ** 2 for p, o in zip(preds, obs))
+        return float(offset), float(scale), float(before), float(after)

@@ -59,6 +59,23 @@ class TestCompression:
         # Assert
         assert "goal" in result.compressed_text.lower()
 
+    def test_compression_retention_metrics(self):
+        """Retention metrics should report anchor and term coverage."""
+        from stateful_repl.compression import ExtractiveCompressor
+
+        original = "Goal: Improve quality. Constraints: No regressions. Artifacts: tests.md."
+        compressed = "Goal: Improve quality. Constraints: No regressions."
+
+        metrics = ExtractiveCompressor().evaluate_retention(
+            original_text=original,
+            compressed_text=compressed,
+            required_terms=["quality", "regressions"],
+        )
+
+        assert 0.0 <= metrics.retention_score <= 1.0
+        assert metrics.anchor_coverage > 0.0
+        assert metrics.required_term_coverage > 0.0
+
 
 class TestPrefetch:
     """Tests for predictive prefetch engine."""
@@ -89,6 +106,17 @@ class TestPrefetch:
         # Act / Assert
         with pytest.raises(ValueError, match="non-empty"):
             engine.record_access("")
+
+    def test_prefetch_quality_metrics(self):
+        """Quality evaluation should return bounded hit-rate and MRR."""
+        from stateful_repl.prefetch import PredictivePrefetchEngine
+
+        trace = ["goal", "constraints", "L2", "goal", "constraints", "L2", "goal"]
+        quality = PredictivePrefetchEngine().evaluate_trace(trace, k=3, warmup=2)
+
+        assert quality.total_predictions > 0
+        assert 0.0 <= quality.hit_rate_at_k <= 1.0
+        assert 0.0 <= quality.mrr <= 1.0
 
 
 class TestCalibration:
@@ -135,6 +163,26 @@ class TestCalibration:
         assert "internal_consistency" in weights
         assert "external_correspondence" in weights
         assert 0.99 <= sum(weights.values()) <= 1.01
+
+    def test_calibration_holdout_metrics(self):
+        """Holdout evaluation should report before/after Brier metrics."""
+        from stateful_repl.calibration import CalibrationLearner, CalibrationSample
+
+        learner = CalibrationLearner(weights_path=tempfile.mktemp(suffix=".json"))
+        samples = [
+            CalibrationSample(predicted=0.9, observed=1),
+            CalibrationSample(predicted=0.85, observed=1),
+            CalibrationSample(predicted=0.7, observed=1),
+            CalibrationSample(predicted=0.4, observed=0),
+            CalibrationSample(predicted=0.3, observed=0),
+            CalibrationSample(predicted=0.2, observed=0),
+        ]
+
+        quality = learner.evaluate_holdout(samples, holdout_ratio=0.33)
+        assert quality.train_size >= 3
+        assert quality.holdout_size >= 3
+        assert 0.0 <= quality.holdout_brier_before <= 1.0
+        assert 0.0 <= quality.holdout_brier_after <= 1.0
 
 
 @pytest.mark.skipif(
@@ -223,6 +271,58 @@ class TestPhase4ServerEndpoints:
         data = r.json()
         assert "state" in data
         assert "L1" in data["state"]
+
+    def test_phase4_compression_metrics_endpoint(self, client):
+        """Compression metrics endpoint should return ratio and retention metrics."""
+        r = client.post(
+            "/phase4/metrics/compression",
+            json={
+                "text": "Goal: Improve system. Constraints: Keep tests green.",
+                "target_ratio": 0.7,
+                "required_terms": ["improve", "tests"],
+            },
+        )
+        assert r.status_code == 200
+        payload = r.json()
+        assert "compression" in payload
+        assert "quality" in payload
+        assert "retention_score" in payload["quality"]
+
+    def test_phase4_prefetch_metrics_endpoint(self, client):
+        """Prefetch metrics endpoint should return hit-rate@k and mrr."""
+        r = client.post(
+            "/phase4/metrics/prefetch",
+            json={
+                "trace": ["goal", "constraints", "L2", "goal", "constraints", "L2"],
+                "k": 3,
+                "warmup": 2,
+            },
+        )
+        assert r.status_code == 200
+        payload = r.json()
+        assert "hit_rate_at_k" in payload
+        assert "mrr" in payload
+
+    def test_phase4_calibration_metrics_endpoint(self, client):
+        """Calibration metrics endpoint should return holdout-quality metrics."""
+        r = client.post(
+            "/phase4/metrics/calibration",
+            json={
+                "samples": [
+                    {"predicted": 0.95, "observed": 1},
+                    {"predicted": 0.85, "observed": 1},
+                    {"predicted": 0.75, "observed": 1},
+                    {"predicted": 0.40, "observed": 0},
+                    {"predicted": 0.30, "observed": 0},
+                    {"predicted": 0.20, "observed": 0},
+                ],
+                "holdout_ratio": 0.33,
+            },
+        )
+        assert r.status_code == 200
+        payload = r.json()
+        assert "holdout_brier_before" in payload
+        assert "holdout_brier_after" in payload
 
 
 @pytest.mark.benchmark

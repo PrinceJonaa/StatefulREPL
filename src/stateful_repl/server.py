@@ -127,6 +127,23 @@ class CalibrationFitRequest(BaseModel):
     samples: list[CalibrationSampleRequest]
 
 
+class CompressionMetricsRequest(BaseModel):
+    text: str
+    target_ratio: float = Field(default=0.3, ge=0.05, le=1.0)
+    required_terms: list[str] = Field(default_factory=list)
+
+
+class PrefetchMetricsRequest(BaseModel):
+    trace: list[str] = Field(default_factory=list)
+    k: int = Field(default=3, ge=1, le=20)
+    warmup: int = Field(default=2, ge=1, le=50)
+
+
+class CalibrationMetricsRequest(BaseModel):
+    samples: list[CalibrationSampleRequest]
+    holdout_ratio: float = Field(default=0.3, ge=0.1, le=0.5)
+
+
 class ReplayResponse(BaseModel):
     event_count: int
     up_to: Optional[int]
@@ -668,3 +685,39 @@ def calibration_fit(body: CalibrationFitRequest):
     samples = [CalibrationSample(predicted=s.predicted, observed=s.observed) for s in body.samples]
     report = learner.fit(samples)
     return report.to_dict()
+
+
+@app.post("/phase4/metrics/compression")
+def compression_metrics(body: CompressionMetricsRequest):
+    """Measure compression ratio and retention quality."""
+    compressor = _get_compressor()
+    result = compressor.compress_text(body.text, target_ratio=body.target_ratio)
+    quality = compressor.evaluate_retention(
+        original_text=body.text,
+        compressed_text=result.compressed_text,
+        required_terms=body.required_terms,
+    )
+    return {
+        "compression": result.to_dict(),
+        "quality": quality.to_dict(),
+    }
+
+
+@app.post("/phase4/metrics/prefetch")
+def prefetch_metrics(body: PrefetchMetricsRequest):
+    """Measure prefetch hit-rate@k and MRR on a trace."""
+    quality = _get_prefetcher().evaluate_trace(
+        trace=body.trace,
+        k=body.k,
+        warmup=body.warmup,
+    )
+    return quality.to_dict()
+
+
+@app.post("/phase4/metrics/calibration")
+def calibration_metrics(body: CalibrationMetricsRequest):
+    """Measure calibration quality on holdout split."""
+    learner = _get_calibration()
+    samples = [CalibrationSample(predicted=s.predicted, observed=s.observed) for s in body.samples]
+    quality = learner.evaluate_holdout(samples, holdout_ratio=body.holdout_ratio)
+    return quality.to_dict()

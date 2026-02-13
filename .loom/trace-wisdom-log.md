@@ -32,3 +32,10 @@
   newrule: "Protect semantic anchors (goal/constraints) in compression and treat persisted files as potentially empty/corrupt."
   glyphstamp: "anchor-and-corruption-guard"
   date: 2026-02-13
+
+- id: SCAR-003
+  scar: "Optimization direction lacked a shared quality gate threshold across compression/prefetch/calibration modules."
+  boon: "Unified measurable metrics now exist across all three modules and are exposed through API endpoints."
+  newrule: "Before tuning algorithms, define explicit gate metrics and add test oracles for each metric family."
+  glyphstamp: "metrics-before-tuning"
+  date: 2026-02-13

@@ -64,3 +64,12 @@ ORACLE-005: Full regression suite
   last_run: 2026-02-13
   result: pass
   notes: 241 tests passing.
+
+ORACLE-006: Phase 4 metric gates regression
+  verifies: CLAIM-005
+  method: test
+  command: pytest tests/test_phase4.py -q && pytest tests/ -q
+  expected: metric tests and full suite pass with bounded quality outputs
+  last_run: 2026-02-13
+  result: pass
+  notes: Added 6 metric-specific tests; full suite now at 247 passes.

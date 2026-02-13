@@ -42,6 +42,24 @@ class CompressionResult:
         }
 
 
+@dataclass
+class CompressionQuality:
+    """Quality metrics for compressed text fidelity."""
+
+    retention_score: float
+    anchor_coverage: float
+    missing_anchors: list[str]
+    required_term_coverage: float
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "retention_score": round(self.retention_score, 3),
+            "anchor_coverage": round(self.anchor_coverage, 3),
+            "missing_anchors": self.missing_anchors,
+            "required_term_coverage": round(self.required_term_coverage, 3),
+        }
+
+
 class ExtractiveCompressor:
     """Simple extractive context compressor.
 
@@ -152,6 +170,43 @@ class ExtractiveCompressor:
 
         return result
 
+    def evaluate_retention(
+        self,
+        original_text: str,
+        compressed_text: str,
+        required_terms: list[str] | None = None,
+    ) -> CompressionQuality:
+        """Evaluate fidelity of compressed text.
+
+        Args:
+            original_text: Source text before compression.
+            compressed_text: Output text after compression.
+            required_terms: Optional required terms (case-insensitive).
+
+        Returns:
+            Compression quality metrics.
+        """
+        original = original_text.lower()
+        compressed = compressed_text.lower()
+
+        anchors = self._extract_anchors(original)
+        missing_anchors = [a for a in anchors if a not in compressed]
+        anchor_coverage = 1.0 if not anchors else 1.0 - (len(missing_anchors) / len(anchors))
+
+        terms = [t.strip().lower() for t in (required_terms or []) if t.strip()]
+        if not terms:
+            terms = self._top_terms(original_text, limit=8)
+        covered_terms = [t for t in terms if t in compressed]
+        required_term_coverage = 1.0 if not terms else len(covered_terms) / len(terms)
+
+        retention_score = max(0.0, min(1.0, 0.6 * anchor_coverage + 0.4 * required_term_coverage))
+        return CompressionQuality(
+            retention_score=retention_score,
+            anchor_coverage=anchor_coverage,
+            missing_anchors=missing_anchors,
+            required_term_coverage=required_term_coverage,
+        )
+
     def _split_sentences(self, text: str) -> list[str]:
         candidates = re.split(r"(?<=[.!?])\s+", text)
         return [c.strip() for c in candidates if c.strip()]
@@ -186,3 +241,17 @@ class ExtractiveCompressor:
 
     def _estimate_tokens(self, text: str) -> int:
         return max(1, len(text.split())) if text.strip() else 0
+
+    def _extract_anchors(self, text: str) -> list[str]:
+        anchors: list[str] = []
+        for marker in ("goal:", "constraints:", "artifacts:", "open questions:"):
+            if marker in text:
+                anchors.append(marker)
+        return anchors
+
+    def _top_terms(self, text: str, limit: int = 8) -> list[str]:
+        tokens = self._tokenize(text)
+        if not tokens:
+            return []
+        counts = Counter(tokens)
+        return [term for term, _ in counts.most_common(limit)]

@@ -58,3 +58,11 @@ ART-005: Phase 4 test suite
   created: 2026-02-13
   status: active
   notes: Feature + benchmark coverage for phase 4 slice.
+
+ART-006: Phase 4 measurable quality gates
+  type: code
+  path: src/stateful_repl/compression.py, src/stateful_repl/prefetch.py, src/stateful_repl/calibration.py, src/stateful_repl/server.py
+  owner: human+copilot
+  created: 2026-02-13
+  status: active
+  notes: Adds retention metrics, prefetch hit-rate@k/MRR, and calibration holdout Brier metrics with API endpoints.
